@@ -40,7 +40,7 @@ pip install -r requirements.txt
 ## Usage
 
 ```bash
-python3 run.py
+python3 -m uvicorn app.main:app --reload --port 800
 ```
 
 Open **http://localhost:8000** in your browser.
