@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LoadForge — API Load Tester</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #0d0f14;
+  --surface:  #13151c;
+  --card:     #1a1d27;
+  --border:   #252836;
+  --border2:  #2e3248;
+  --accent:   #6366f1;
+  --accent2:  #818cf8;
+  --green:    #10b981;
+  --red:      #ef4444;
+  --yellow:   #f59e0b;
+  --text:     #e2e8f0;
+  --muted:    #64748b;
+  --muted2:   #94a3b8;
+  --radius:   10px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  font-size: 13px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ─────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  height: 52px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+  letter-spacing: -0.3px;
+}
+.logo span { color: var(--accent2); }
+.logo-badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+header .spacer { flex: 1; }
+.header-meta { color: var(--muted); font-size: 12px; }
+
+/* ── Main layout ─────────────────────────────────────── */
+main {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - 52px);
+}
+
+/* ── Left panel ──────────────────────────────────────── */
+.config-panel {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 16px;
+  gap: 14px;
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+textarea {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 10px 12px;
+  resize: vertical;
+  outline: none;
+  transition: border-color .15s;
+  min-height: 120px;
+}
+textarea:focus { border-color: var(--accent); }
+textarea::placeholder { color: var(--muted); }
+
+/* Parsed preview */
+.parsed-preview {
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: none;
+  gap: 6px;
+  flex-direction: column;
+}
+.parsed-preview.visible { display: flex; }
+.preview-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.method-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.m-get    { background: #0c4a6e; color: #38bdf8; }
+.m-post   { background: #14532d; color: #4ade80; }
+.m-put    { background: #451a03; color: #fb923c; }
+.m-patch  { background: #3b0764; color: #c084fc; }
+.m-delete { background: #450a0a; color: #f87171; }
+.preview-url { color: var(--text); word-break: break-all; font-family: monospace; font-size: 11px; }
+.preview-headers { color: var(--muted2); font-size: 11px; }
+.preview-error { color: var(--red); font-size: 11px; }
+
+/* Params row */
+.params-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+.param-group { display: flex; flex-direction: column; gap: 5px; }
+.param-group label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.param-group input {
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 10px;
+  outline: none;
+  transition: border-color .15s;
+  width: 100%;
+  text-align: center;
+}
+.param-group input:focus { border-color: var(--accent); }
+.param-unit {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* Action buttons */
+.actions { display: flex; gap: 8px; }
+.btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn-run {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-run:hover:not(:disabled) { background: var(--accent2); }
+.btn-stop {
+  background: var(--card);
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+.btn-stop:hover:not(:disabled) { background: #450a0a; }
+.btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+/* ── Right panel ─────────────────────────────────────── */
+.results-panel {
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Idle state */
+.idle-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted);
+  padding: 60px 0;
+}
+.idle-icon { font-size: 48px; opacity: 0.4; }
+.idle-state h3 { font-size: 16px; color: var(--muted2); font-weight: 600; }
+.idle-state p { font-size: 13px; text-align: center; max-width: 300px; line-height: 1.6; }
+
+/* Progress bar */
+.progress-wrap {
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.progress-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.progress-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.badge-running  { background: #1e3a5f; color: #60a5fa; }
+.badge-complete { background: #14532d; color: var(--green); }
+.badge-stopped  { background: #451a03; color: var(--yellow); }
+.badge-error    { background: #450a0a; color: var(--red); }
+.progress-bar {
+  height: 6px;
+  background: var(--border2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 99px;
+  transition: width .4s ease;
+  width: 0%;
+}
+.progress-meta {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.progress-meta span b { color: var(--muted2); }
+
+/* Stats cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 12px 10px;
+  text-align: center;
+}
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+.stat-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Charts */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.chart-card {
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.chart-card.full { grid-column: 1 / -1; }
+.chart-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+.chart-wrap { position: relative; height: 180px; }
+.chart-wrap-sm { position: relative; height: 120px; }
+
+/* Error box */
+.error-box {
+  background: #450a0a;
+  border: 1px solid #7f1d1d;
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  color: #fca5a5;
+  font-size: 13px;
+  display: none;
+}
+.error-box.visible { display: block; }
+.error-box strong { display: block; margin-bottom: 4px; color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⚡ <span>Load</span>Forge <span class="logo-badge">BETA</span></div>
+  <div class="spacer"></div>
+  <div class="header-meta">API Load Testing Tool</div>
+</header>
+
+<main>
+  <!-- ── Left: Config ── -->
+  <div class="config-panel">
+
+    <div>
+      <div class="section-label">cURL Command</div>
+      <textarea id="curl-input" rows="6"
+        placeholder="curl https://api.example.com/endpoint&#10;  -H 'Authorization: Bearer token'&#10;  -H 'Content-Type: application/json'&#10;  -d '{&quot;key&quot;: &quot;value&quot;}'"></textarea>
+    </div>
+
+    <div id="parsed-preview" class="parsed-preview">
+      <!-- filled by JS -->
+    </div>
+
+    <div>
+      <div class="section-label">Test Configuration</div>
+      <div class="params-grid">
+        <div class="param-group">
+          <label>Virtual Users</label>
+          <input type="number" id="users" value="10" min="1" max="500"/>
+          <div class="param-unit">concurrent</div>
+        </div>
+        <div class="param-group">
+          <label>Ramp-up</label>
+          <input type="number" id="ramp-up" value="5" min="0"/>
+          <div class="param-unit">seconds</div>
+        </div>
+        <div class="param-group">
+          <label>Duration</label>
+          <input type="number" id="duration" value="30" min="1"/>
+          <div class="param-unit">seconds</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="run-btn" class="btn btn-run">&#9654; Run Test</button>
+      <button id="stop-btn" class="btn btn-stop" disabled>&#9632; Stop</button>
+    </div>
+
+  </div>
+
+  <!-- ── Right: Results ── -->
+  <div class="results-panel">
+
+    <!-- Idle -->
+    <div class="idle-state" id="idle-state">
+      <div class="idle-icon">⚡</div>
+      <h3>Ready to test</h3>
+      <p>Paste a cURL command, configure users &amp; duration, then click Run Test to start.</p>
+    </div>
+
+    <!-- Error -->
+    <div class="error-box" id="error-box">
+      <strong>Error</strong>
+      <span id="error-msg"></span>
+    </div>
+
+    <!-- Active / complete results (hidden until first update) -->
+    <div id="results-wrap" style="display:none; display:none; flex-direction:column; gap:14px;">
+
+      <!-- Progress -->
+      <div class="progress-wrap">
+        <div class="progress-top">
+          <div class="progress-label">
+            <span id="progress-time">0s / 30s</span>
+            &nbsp;·&nbsp;
+            <span id="active-users-label">0 active users</span>
+          </div>
+          <span class="status-badge badge-running" id="status-badge">Running</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="progress-meta">
+          <span><b id="meta-total">0</b> requests</span>
+          <span><b id="meta-rps">0</b> req/s</span>
+          <span><b id="meta-success">—</b> success rate</span>
+        </div>
+      </div>
+
+      <!-- Stats cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="s-total">0</div>
+          <div class="stat-label">Total Requests</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="s-rps">0</div>
+          <div class="stat-label">Req / Second</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="s-rate">—</div>
+          <div class="stat-label">Success Rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="s-avg">—</div>
+          <div class="stat-label">Avg Response</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="s-p95">—</div>
+          <div class="stat-label">P95 Response</div>
+        </div>
+      </div>
+
+      <!-- Charts row 1 -->
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-title">Response Time (ms)</div>
+          <div class="chart-wrap"><canvas id="chart-rt"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Throughput (req / s)</div>
+          <div class="chart-wrap"><canvas id="chart-rps"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Charts row 2 -->
+      <div class="charts-row">
+        <div class="chart-card full">
+          <div class="chart-title">Virtual Users — ramp-up &amp; load</div>
+          <div class="chart-wrap-sm"><canvas id="chart-users"></canvas></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  Globals
+// ═══════════════════════════════════════════════════════════════
+let ws = null;
+let charts = {};
+const MAX_POINTS = 120;
+
+const $ = id => document.getElementById(id);
+
+// ═══════════════════════════════════════════════════════════════
+//  Chart.js — shared defaults
+// ═══════════════════════════════════════════════════════════════
+const CHART_DEFAULTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: false,
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: { labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } },
+    tooltip: {
+      backgroundColor: '#1a1d27',
+      borderColor: '#2e3248',
+      borderWidth: 1,
+      titleColor: '#e2e8f0',
+      bodyColor: '#94a3b8',
+      padding: 8,
+    },
+  },
+  scales: {
+    x: {
+      grid: { color: '#1e2130' },
+      ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 10 },
+    },
+    y: {
+      grid: { color: '#1e2130' },
+      ticks: { color: '#64748b', font: { size: 10 } },
+      beginAtZero: true,
+    },
+  },
+};
+
+function createCharts() {
+  Chart.defaults.color = '#94a3b8';
+
+  // Response Time chart (avg + p95)
+  charts.rt = new Chart($('chart-rt').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label: 'Avg',
+          data: [],
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99,102,241,0.08)',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: 'P95',
+          data: [],
+          borderColor: '#f59e0b',
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          pointRadius: 0,
+          tension: 0.3,
+          fill: false,
+        },
+      ],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      scales: {
+        ...CHART_DEFAULTS.scales,
+        y: { ...CHART_DEFAULTS.scales.y, title: { display: true, text: 'ms', color: '#64748b', font: { size: 10 } } },
+      },
+    },
+  });
+
+  // Throughput chart
+  charts.rps = new Chart($('chart-rps').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'req/s',
+        data: [],
+        backgroundColor: 'rgba(16,185,129,0.5)',
+        borderColor: '#10b981',
+        borderWidth: 1,
+        borderRadius: 3,
+      }],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } },
+    },
+  });
+
+  // Virtual users chart
+  charts.users = new Chart($('chart-users').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Active Users',
+        data: [],
+        borderColor: '#818cf8',
+        backgroundColor: 'rgba(129,140,248,0.1)',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3,
+        fill: true,
+      }],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } },
+      scales: {
+        ...CHART_DEFAULTS.scales,
+        y: { ...CHART_DEFAULTS.scales.y, title: { display: true, text: 'users', color: '#64748b', font: { size: 10 } } },
+      },
+    },
+  });
+}
+
+function pushChartPoint(label, avg, p95, rps, users) {
+  const push = (chart, ...vals) => {
+    chart.data.labels.push(label);
+    vals.forEach((v, i) => chart.data.datasets[i].data.push(v));
+    if (chart.data.labels.length > MAX_POINTS) {
+      chart.data.labels.shift();
+      chart.data.datasets.forEach(d => d.data.shift());
+    }
+    chart.update('none');
+  };
+  push(charts.rt, avg, p95);
+  push(charts.rps, rps);
+  push(charts.users, users);
+}
+
+function resetCharts() {
+  if (!charts.rt) return;
+  [charts.rt, charts.rps, charts.users].forEach(c => {
+    c.data.labels = [];
+    c.data.datasets.forEach(d => d.data = []);
+    c.update('none');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  cURL preview (client-side, lightweight)
+// ═══════════════════════════════════════════════════════════════
+function previewCurl(raw) {
+  const preview = $('parsed-preview');
+  raw = raw.trim().replace(/\\\r?\n/g, ' ');
+
+  if (!raw || !raw.toLowerCase().includes('http')) {
+    preview.classList.remove('visible');
+    preview.innerHTML = '';
+    return;
+  }
+
+  try {
+    const urlMatch = raw.match(/(?:^|[\s'"])(https?:\/\/[^\s'"\\]+)/);
+    const methodMatch = raw.match(/-X\s+([A-Z]+)/i);
+    const headerMatches = [...raw.matchAll(/-H\s+['"]([^'"]+)['"]/g)];
+    const hasBody = raw.includes('-d ') || raw.includes('--data');
+
+    const url = urlMatch ? urlMatch[1] : null;
+    const method = methodMatch ? methodMatch[1].toUpperCase() : (hasBody ? 'POST' : 'GET');
+    const headers = headerMatches.map(m => m[1]);
+
+    if (!url) { preview.classList.remove('visible'); return; }
+
+    const methodClass = { GET: 'm-get', POST: 'm-post', PUT: 'm-put', PATCH: 'm-patch', DELETE: 'm-delete' }[method] || 'm-get';
+
+    preview.innerHTML = `
+      <div class="preview-row">
+        <span class="method-badge ${methodClass}">${method}</span>
+        <span class="preview-url">${url}</span>
+      </div>
+      ${headers.length ? `<div class="preview-headers">${headers.length} header${headers.length > 1 ? 's' : ''}: ${headers.map(h => h.split(':')[0]).join(', ')}</div>` : ''}
+      ${hasBody ? '<div class="preview-headers">Request body included</div>' : ''}
+    `;
+    preview.classList.add('visible');
+  } catch (e) {
+    preview.innerHTML = `<div class="preview-error">Could not parse cURL</div>`;
+    preview.classList.add('visible');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  UI state helpers
+// ═══════════════════════════════════════════════════════════════
+function showResults() {
+  $('idle-state').style.display = 'none';
+  const wrap = $('results-wrap');
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+}
+
+function hideError() {
+  $('error-box').classList.remove('visible');
+}
+
+function showError(msg) {
+  $('error-box').classList.add('visible');
+  $('error-msg').textContent = msg;
+}
+
+function setBadge(state) {
+  const badge = $('status-badge');
+  badge.className = 'status-badge';
+  const map = {
+    running:  ['badge-running',  'Running'],
+    complete: ['badge-complete', 'Complete'],
+    stopped:  ['badge-stopped',  'Stopped'],
+    error:    ['badge-error',    'Error'],
+  };
+  const [cls, label] = map[state] || map.running;
+  badge.classList.add(cls);
+  badge.textContent = label;
+}
+
+function setRunning(running) {
+  $('run-btn').disabled = running;
+  $('stop-btn').disabled = !running;
+}
+
+function applyUpdate(d) {
+  const duration = parseInt($('duration').value) || 30;
+
+  $('progress-fill').style.width = d.progress + '%';
+  $('progress-time').textContent = `${d.elapsed}s / ${duration}s`;
+  $('active-users-label').textContent = `${d.active_users} active user${d.active_users !== 1 ? 's' : ''}`;
+
+  $('meta-total').textContent   = d.total;
+  $('meta-rps').textContent     = d.rps;
+  $('meta-success').textContent = d.success_rate + '%';
+
+  $('s-total').textContent = d.total;
+  $('s-rps').textContent   = d.rps;
+  $('s-rate').textContent  = d.total > 0 ? d.success_rate + '%' : '—';
+  $('s-avg').textContent   = d.total > 0 ? d.avg_rt + 'ms' : '—';
+  $('s-p95').textContent   = d.total > 0 ? d.p95_rt + 'ms' : '—';
+
+  const label = d.elapsed + 's';
+  pushChartPoint(label, d.avg_rt || 0, d.p95_rt || 0, d.rps || 0, d.active_users || 0);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  WebSocket logic
+// ═══════════════════════════════════════════════════════════════
+function startTest() {
+  const curlVal = $('curl-input').value.trim();
+  if (!curlVal) { showError('Please enter a cURL command.'); return; }
+
+  hideError();
+  showResults();
+  resetCharts();
+  setBadge('running');
+  setRunning(true);
+
+  if (!charts.rt) createCharts();
+
+  const config = {
+    curl:     curlVal,
+    users:    parseInt($('users').value)    || 10,
+    ramp_up:  parseFloat($('ramp-up').value) || 0,
+    duration: parseFloat($('duration').value) || 30,
+  };
+
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+  ws.onopen = () => ws.send(JSON.stringify(config));
+
+  ws.onmessage = (evt) => {
+    const d = JSON.parse(evt.data);
+
+    if (d.type === 'update') {
+      applyUpdate(d);
+
+    } else if (d.type === 'complete') {
+      applyUpdate({ ...d, progress: 100, active_users: 0 });
+      setBadge('complete');
+      setRunning(false);
+      $('progress-fill').style.width = '100%';
+
+    } else if (d.type === 'error') {
+      showError(d.message);
+      setBadge('error');
+      setRunning(false);
+    }
+  };
+
+  ws.onerror = () => {
+    showError('WebSocket connection failed. Is the server running?');
+    setBadge('error');
+    setRunning(false);
+  };
+
+  ws.onclose = () => {
+    if ($('status-badge').textContent === 'Running') {
+      setBadge('stopped');
+      setRunning(false);
+    }
+  };
+}
+
+function stopTest() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'stop' }));
+  }
+  setBadge('stopped');
+  setRunning(false);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Event listeners
+// ═══════════════════════════════════════════════════════════════
+$('run-btn').addEventListener('click', startTest);
+$('stop-btn').addEventListener('click', stopTest);
+$('curl-input').addEventListener('input', e => previewCurl(e.target.value));
+
+// Example cURL on load so users see the format immediately
+window.addEventListener('DOMContentLoaded', () => {
+  const example = `curl https://httpbin.org/get -H 'Accept: application/json'`;
+  $('curl-input').value = example;
+  previewCurl(example);
+});
+</script>
+</body>
+</html>
